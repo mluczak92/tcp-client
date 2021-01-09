@@ -32,7 +32,7 @@ namespace tcp_client {
         }
 
         static string ReadInput() {
-            Print($"Enter your message or \"close\" command: ");
+            Print($"Enter your message: ");
             return Console.ReadLine();
         }
 
