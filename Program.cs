@@ -19,13 +19,13 @@ namespace tcp_client {
                     Connect();
                     PrepareAndSend(input);
                 } catch (SocketException) { //server off
-                    Print("Can't reach server.");
+                    Print("Can't reach server. Please try again in a moment.");
                     continue;
                 } catch (IOException) { //server force closed while connection was active
                     stream.Close();
                     client.Close();
                     client = new TcpClient();
-                    Print("Disconnected.");
+                    Print("Disconnected from server. Please try again in a moment.");
                     continue;
                 }
             }
