@@ -6,7 +6,7 @@ using System.Text;
 
 namespace tcp_client {
     class Program {
-        static short port = 2121;
+        static readonly short port = 2121;
         static TcpClient client;
         static NetworkStream stream;
 
@@ -18,14 +18,14 @@ namespace tcp_client {
                 try {
                     Connect();
                     PrepareAndSend(input);
-                } catch (SocketException e) { //server off
-                    Print(e.Message);
+                } catch (SocketException) { //server off
+                    Print("Can't reach server.");
                     continue;
-                } catch (IOException e) { //server force closed while connection was active
+                } catch (IOException) { //server force closed while connection was active
                     stream.Close();
                     client.Close();
                     client = new TcpClient();
-                    Print(e.Message);
+                    Print("Disconnected.");
                     continue;
                 }
             }
@@ -47,7 +47,8 @@ namespace tcp_client {
 
         static void PrepareAndSend(string input) {
             switch (input) {
-                //case "close": SendCommand(input); break;
+                //case "id":
+                //case "dc": SendCommand(input); break;
                 default: SendMessage(input); break;
             }
         }
@@ -59,7 +60,7 @@ namespace tcp_client {
         static void SendMessage(string input) {
             input = AddHeader(input);
             Send(input);
-            HandleResponse();
+            ReadResponse();
         }
 
         static string AddHeader(string input) {
@@ -69,18 +70,18 @@ namespace tcp_client {
         static void Send(string input) {
             byte[] encoded = Encoding.ASCII.GetBytes(input);
             stream.Write(encoded, 0, encoded.Length);
-            Print($">>> Sent: {input}");
+            Print($">>> Sent:\t{input}");
         }
 
-        static void HandleResponse() {
+        static void ReadResponse() {
             byte[] receivedBuffor = new byte[64]; //fixed 'safe' size for now
             stream.Read(receivedBuffor, 0, receivedBuffor.Length);
             string response = Encoding.ASCII.GetString(receivedBuffor, 0, receivedBuffor.Length);
-            Print($"<<< Received: {response}");
+            Print($"<<< Received:\t{response}");
         }
 
         static void Print(string msg) {
-            Console.WriteLine($"{DateTime.Now.ToString("HH:mm fff")}\t{msg}");
+            Console.WriteLine($"{DateTime.Now:HH:mm fff}\t{msg}");
         }
     }
 }
