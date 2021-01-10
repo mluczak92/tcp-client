@@ -1,23 +1,29 @@
 ﻿using System;
 using System.IO;
-using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace tcp_client {
     class Program {
+        static readonly string host = "127.0.0.1";
         static readonly short port = 2121;
-        static TcpClient client;
+        static TcpClient client = new TcpClient();
         static NetworkStream stream;
 
+        static readonly byte[] receivedBuffor = new byte[64]; //not lower than 5! first 5 bytes shows whole message size
+        static readonly StringBuilder messageBuilder = new StringBuilder();
+        static int currentPartSize;
+        static short sizeFromMessageHeader;
+        static int alreadyReadBytes;
+
         static void Main(string[] args) {
-            Print($"Hello world!");
-            client = new TcpClient();
             while (true) {
-                string input = ReadInput();
+                InitConnect();
+                string input = Console.ReadLine();
                 try {
                     Connect();
-                    PrepareAndSend(input);
+                    SendMessage(input);
                 } catch (SocketException) { //server off
                     Print("Can't reach server. Please try again in a moment.");
                     continue;
@@ -31,36 +37,61 @@ namespace tcp_client {
             }
         }
 
-        static string ReadInput() {
-            Print($"Enter your message: ");
-            return Console.ReadLine();
+        static void InitConnect() {
+            while (true) {
+                try {
+                    if (Connect())
+                        break;
+                } catch (SocketException) { //server off
+                    Print("Can't reach server.");
+                    continue;
+                }
+            }
         }
 
-        static void Connect() {
+        static bool Connect() {
             if (!client.Connected) {
-                Print($"Connecting localhost using port {port}...");
-                client.Connect(IPAddress.Loopback, port);
+                Print($"Connecting {host} using port {port}...");
+                client.Connect(host, port);
                 stream = client.GetStream();
+                Task.Run(() => {
+                    ReceiveServerMessages();
+                });
                 Print("Connected!");
             }
+            return true;
         }
 
-        static void PrepareAndSend(string input) {
-            switch (input) {
-                //case "id":
-                //case "dc": SendCommand(input); break;
-                default: SendMessage(input); break;
+        static void ReceiveServerMessages() {
+            try {
+                while ((currentPartSize = stream.Read(receivedBuffor, 0, receivedBuffor.Length)) != 0) {
+                    string decoded = Encoding.ASCII.GetString(receivedBuffor, 0, currentPartSize);
+                    messageBuilder.Append(decoded);
+
+                    if (sizeFromMessageHeader == 0) { //first part
+                        sizeFromMessageHeader = short.Parse(decoded.Substring(0, 5));
+                    }
+
+                    alreadyReadBytes += currentPartSize;
+                    if (alreadyReadBytes == sizeFromMessageHeader) { //last part
+                        Console.WriteLine(messageBuilder.ToString()[6..]);
+                        messageBuilder.Clear();
+                        sizeFromMessageHeader = 0;
+                        alreadyReadBytes = 0;
+                    }
+                }
+            } catch (IOException) { //server force closed while connection was active
+                Print("Disconnected. Please try again in a moment.");
+                stream.Close();
+                client.Close();
+                client = new TcpClient();
+                InitConnect();
             }
         }
-
-        //static void SendCommand(string input) {
-
-        //}
 
         static void SendMessage(string input) {
             input = AddHeader(input);
             Send(input);
-            ReadResponse();
         }
 
         static string AddHeader(string input) {
@@ -70,14 +101,6 @@ namespace tcp_client {
         static void Send(string input) {
             byte[] encoded = Encoding.ASCII.GetBytes(input);
             stream.Write(encoded, 0, encoded.Length);
-            Print($">>> Sent:\t{input}");
-        }
-
-        static void ReadResponse() {
-            byte[] receivedBuffor = new byte[64]; //fixed 'safe' size for now
-            stream.Read(receivedBuffor, 0, receivedBuffor.Length);
-            string response = Encoding.ASCII.GetString(receivedBuffor, 0, receivedBuffor.Length);
-            Print($"<<< Received:\t{response}");
         }
 
         static void Print(string msg) {
